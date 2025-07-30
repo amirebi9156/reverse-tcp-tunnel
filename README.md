@@ -11,10 +11,11 @@ This project is a simple reverse TCP tunneling tool written in Go. It allows a c
 
 ## Usage
 
-Build and run using the helper script:
+Run the helper script to install dependencies and launch the menu:
 
 ```bash
-./install-and-run.sh
+bash install-and-run.sh
 ```
 
-The script will build the binaries and start either the server or client mode.
+The script installs Go if needed, fetches Go modules, builds the binaries,
+and then presents an interactive menu where you can start the server or client.

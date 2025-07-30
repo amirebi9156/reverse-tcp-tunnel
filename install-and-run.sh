@@ -1,13 +1,19 @@
 #!/bin/bash
 
 clear
-echo "  **** utunnel Reverse Tunnel Management Console ****"
-echo ""
-echo "  1) Start in Server Mode"
-echo "  2) Start in Client Mode"
-echo "  3) Exit"
-echo ""
-echo -n "Enter your choice (1-3): "
+cat <<EOF
+  **** utunnel Reverse Tunnel Management Console ****
+
+  1) Start in Server Mode
+  2) Start in Client Mode
+  3) Tunnel Status (inactive)
+  4) Restart Service (inactive)
+  5) Stop Service (inactive)
+  6) Delete Service (inactive)
+  7) Reset Timer (inactive)
+  8) Exit
+EOF
+echo -n "Enter your choice (1-8): "
 read choice
 
 # Check for Go installation
@@ -19,6 +25,9 @@ if ! command -v git &> /dev/null; then
     echo "[!] Git is not installed. Installing..."
     sudo apt update && sudo apt install -y git
 fi
+
+# Fetch Go module dependencies
+go mod download
 
 # Build binaries if not already built
 if [ ! -f server.bin ]; then
@@ -57,7 +66,10 @@ case $choice in
     echo "[+] Starting in CLIENT mode (Foreign VPS)..."
     ./client.bin
     ;;
-  3)
+  3|4|5|6|7)
+    echo "Option $choice is not implemented yet."
+    ;;
+  8)
     echo "Exiting..."
     exit 0
     ;;
