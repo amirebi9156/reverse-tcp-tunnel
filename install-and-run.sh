@@ -15,6 +15,10 @@ if ! command -v go &> /dev/null; then
     echo "[!] Golang is not installed. Installing..."
     sudo apt update && sudo apt install -y golang
 fi
+if ! command -v git &> /dev/null; then
+    echo "[!] Git is not installed. Installing..."
+    sudo apt update && sudo apt install -y git
+fi
 
 # Build binaries if not already built
 if [ ! -f server.bin ]; then
@@ -27,17 +31,31 @@ if [ ! -f client.bin ]; then
     go build -o client.bin ./client
 fi
 
+if [ ! -f config.toml ]; then
+    echo "[!] config.toml not found. Creating..."
+    read -p "Listen address [0.0.0.0:9000]: " laddr
+    read -p "Connect address [1.2.3.4:9000]: " caddr
+    read -p "Token: " token
+    laddr=${laddr:-0.0.0.0:9000}
+    caddr=${caddr:-1.2.3.4:9000}
+    cat > config.toml <<EOF
+listen_addr = "$laddr"
+connect_addr = "$caddr"
+token = "$token"
+tunnel_ports = ["8080"]
+heartbeat_interval = 30
+log_file = "reverse.log"
+EOF
+fi
+
 case $choice in
   1)
     echo "[+] Starting in SERVER mode (Iran VPS)..."
     ./server.bin
     ;;
   2)
-    echo -n "Enter server IP:PORT to connect to: "
-    read serverAddr
-    echo -n "Enter token: "
-    read token
-    ./client.bin $serverAddr $token
+    echo "[+] Starting in CLIENT mode (Foreign VPS)..."
+    ./client.bin
     ;;
   3)
     echo "Exiting..."

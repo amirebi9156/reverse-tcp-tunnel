@@ -1,76 +1,79 @@
 package client
 
 import (
-	"bufio"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
-	"os"
-	"strings"
 	"time"
-	"github.com/pelletier/go-toml"
+
+	"reverse/config"
+	"reverse/pkg/logger"
 )
 
-type ClientConfig struct {
-	TunnelName string `toml:"tunnel_name"`
-	ServerAddr string `toml:"server_address"`
-	Token      string `toml:"token"`
-	LocalPort  string `toml:"local_port"`
-}
-
-func loadClientConfig(path string) (ClientConfig, error) {
-	var config ClientConfig
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return config, err
-	}
-	err = toml.Unmarshal(data, &config)
-	return config, err
+// handshake message structure
+type handshake struct {
+	Token string `json:"token"`
+	Port  string `json:"port"`
 }
 
 func Start() error {
-	config, err := loadClientConfig("config.toml")
+	cfg, err := config.Load("config.toml")
 	if err != nil {
-		return fmt.Errorf("[!] Failed to load config: %v", err)
+		return fmt.Errorf("load config: %w", err)
 	}
 
-	fmt.Println("[+] Connecting to tunnel server:", config.ServerAddr)
-	conn, err := net.Dial("tcp", config.ServerAddr)
+	if err := logger.Init(cfg.LogFile); err != nil {
+		return err
+	}
+
+	for {
+		if err := run(cfg); err != nil {
+			logger.Log.Printf("connection error: %v", err)
+			time.Sleep(5 * time.Second)
+			continue
+		}
+		break
+	}
+	return nil
+}
+
+func run(cfg config.Config) error {
+	logger.Log.Printf("connecting to %s", cfg.ConnectAddr)
+	conn, err := net.DialTimeout("tcp", cfg.ConnectAddr, 10*time.Second)
 	if err != nil {
-		return fmt.Errorf("[!] Failed to connect: %v", err)
+		return err
 	}
 	defer conn.Close()
 
-	message := fmt.Sprintf("TOKEN:%s\n", config.Token)
-	_, err = conn.Write([]byte(message))
-	if err != nil {
-		return fmt.Errorf("[!] Error sending token: %v", err)
-	}
+	hs := handshake{Token: cfg.Token, Port: cfg.TunnelPorts[0]}
+	data, _ := json.Marshal(hs)
+	conn.Write(append(data, '\n'))
 
-	heartbeatInterval := 30 * time.Second
-	go func() {
-		ticker := time.NewTicker(heartbeatInterval)
-		defer ticker.Stop()
-		for range ticker.C {
-			conn.Write([]byte("HEARTBEAT\n"))
-		}
-	}()
+	go heartbeat(conn, cfg.Heartbeat)
 
-	ln, err := net.Listen("tcp", ":"+config.LocalPort)
+	ln, err := net.Listen("tcp", ":"+cfg.TunnelPorts[0])
 	if err != nil {
-		return fmt.Errorf("[!] Failed to listen on local port: %v", err)
+		return err
 	}
 	defer ln.Close()
 
-	fmt.Println("[✓] Tunnel ready. Forwarding local port", config.LocalPort)
-
+	logger.Log.Printf("tunnel ready on local port %s", cfg.TunnelPorts[0])
 	for {
 		localConn, err := ln.Accept()
 		if err != nil {
-			fmt.Println("[!] Accept error:", err)
+			logger.Log.Printf("accept error: %v", err)
 			continue
 		}
 		go proxy(localConn, conn)
+	}
+}
+
+func heartbeat(conn net.Conn, interval int) {
+	ticker := time.NewTicker(time.Duration(interval) * time.Second)
+	defer ticker.Stop()
+	for range ticker.C {
+		conn.Write([]byte("{}\n"))
 	}
 }
 
