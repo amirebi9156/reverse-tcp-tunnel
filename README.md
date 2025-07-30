@@ -11,10 +11,10 @@ This project is a simple reverse TCP tunneling tool written in Go. It allows a c
 
 ## Usage
 
-Run the helper script to install dependencies and launch the menu:
+Run the installer directly from GitHub:
 
 ```bash
-bash install-and-run.sh
+bash <(curl -s https://raw.githubusercontent.com/amirebi9156/Rez-reverse-tunnel/main/install.sh --ipv4)
 ```
 
 The script installs Go if needed, fetches Go modules, builds the binaries,
