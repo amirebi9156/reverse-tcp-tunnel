@@ -2,7 +2,6 @@ package client
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 	"net"
 	"time"
@@ -13,16 +12,12 @@ import (
 
 // handshake message structure
 type handshake struct {
+	Name  string `json:"name"`
 	Token string `json:"token"`
 	Port  string `json:"port"`
 }
 
-func Start() error {
-	cfg, err := config.Load("config.toml")
-	if err != nil {
-		return fmt.Errorf("load config: %w", err)
-	}
-
+func Start(cfg config.Config) error {
 	if err := logger.Init(cfg.LogFile); err != nil {
 		return err
 	}
@@ -46,7 +41,7 @@ func run(cfg config.Config) error {
 	}
 	defer conn.Close()
 
-	hs := handshake{Token: cfg.Token, Port: cfg.TunnelPorts[0]}
+	hs := handshake{Name: cfg.Name, Token: cfg.Token, Port: cfg.TunnelPorts[0]}
 	data, _ := json.Marshal(hs)
 	conn.Write(append(data, '\n'))
 

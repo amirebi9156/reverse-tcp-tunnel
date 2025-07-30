@@ -5,7 +5,6 @@ package main
 import (
 	"bufio"
 	"fmt"
-	"log"
 	"os"
 	"strings"
 
@@ -15,10 +14,6 @@ import (
 )
 
 func main() {
-	_, err := config.Load("config.toml")
-	if err != nil {
-		log.Fatalf("failed to load config: %v", err)
-	}
 	reader := bufio.NewReader(os.Stdin)
 
 	fmt.Println(`
@@ -39,14 +34,18 @@ func main() {
 
 	switch choice {
 	case "1":
-		fmt.Println("[+] Starting in SERVER mode (Iran VPS)...")
-		if err := server.Start(); err != nil {
-			log.Fatal("[!] Server error:", err)
+		cfg := askServerConfig(reader)
+		config.Save("config.toml", cfg)
+		fmt.Println("[+] Starting in SERVER mode...")
+		if err := server.Start(cfg); err != nil {
+			fmt.Println("Server error:", err)
 		}
 	case "2":
-		fmt.Println("[+] Starting in CLIENT mode (Foreign VPS)...")
-		if err := client.Start(); err != nil {
-			log.Fatal("[!] Client error:", err)
+		cfg := askClientConfig(reader)
+		config.Save("config.toml", cfg)
+		fmt.Println("[+] Starting in CLIENT mode...")
+		if err := client.Start(cfg); err != nil {
+			fmt.Println("Client error:", err)
 		}
 	case "8":
 		fmt.Println("Exiting...")
@@ -55,4 +54,68 @@ func main() {
 		fmt.Println("Invalid choice. Please select a number between 1 and 8.")
 		os.Exit(1)
 	}
+}
+
+func askServerConfig(r *bufio.Reader) config.Config {
+	fmt.Print("Tunnel name: ")
+	name, _ := r.ReadString('\n')
+	fmt.Print("Listen address [0.0.0.0:9000]: ")
+	laddr, _ := r.ReadString('\n')
+	fmt.Print("Token: ")
+	token, _ := r.ReadString('\n')
+	fmt.Print("Forward ports (comma separated) [8080]: ")
+	portsStr, _ := r.ReadString('\n')
+
+	ports := parsePorts(strings.TrimSpace(portsStr), "8080")
+
+	return config.Config{
+		Name:        strings.TrimSpace(name),
+		ListenAddr:  defaultStr(strings.TrimSpace(laddr), "0.0.0.0:9000"),
+		Token:       strings.TrimSpace(token),
+		TunnelPorts: ports,
+		Heartbeat:   30,
+		LogFile:     "reverse.log",
+	}
+}
+
+func askClientConfig(r *bufio.Reader) config.Config {
+	fmt.Print("Tunnel name: ")
+	name, _ := r.ReadString('\n')
+	fmt.Print("Server address [1.2.3.4:9000]: ")
+	addr, _ := r.ReadString('\n')
+	fmt.Print("Token: ")
+	token, _ := r.ReadString('\n')
+	fmt.Print("Local service port [8080]: ")
+	port, _ := r.ReadString('\n')
+
+	return config.Config{
+		Name:        strings.TrimSpace(name),
+		ConnectAddr: defaultStr(strings.TrimSpace(addr), "1.2.3.4:9000"),
+		Token:       strings.TrimSpace(token),
+		TunnelPorts: []string{defaultStr(strings.TrimSpace(port), "8080")},
+		Heartbeat:   30,
+		LogFile:     "reverse.log",
+	}
+}
+
+func parsePorts(in, def string) []string {
+	if in == "" {
+		return []string{def}
+	}
+	fields := strings.Split(in, ",")
+	var out []string
+	for _, f := range fields {
+		f = strings.TrimSpace(f)
+		if f != "" {
+			out = append(out, f)
+		}
+	}
+	return out
+}
+
+func defaultStr(v, def string) string {
+	if v == "" {
+		return def
+	}
+	return v
 }

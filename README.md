@@ -1,6 +1,6 @@
 # Reverse TCP Tunnel
 
-This project is a simple reverse TCP tunneling tool written in Go. It allows a client running on a foreign VPS to forward connections back to an Iranian server. The configuration is stored in `config.toml`.
+This project is a reverse TCP tunneling tool written in Go. It forwards connections from a client VPS back to a server VPS. Configuration is stored in `config.toml` which can be generated interactively.
 
 ## Features
 
@@ -17,5 +17,12 @@ Run the installer directly from GitHub:
 bash <(curl -s https://raw.githubusercontent.com/amirebi9156/Rez-reverse-tunnel/main/install.sh --ipv4)
 ```
 
-The script installs Go if needed, fetches Go modules, builds the binaries,
-and then presents an interactive menu where you can start the server or client.
+The script installs Go and Git if needed, clones this repository, builds the binaries and then launches the interactive management console.
+
+### نحوه استفاده (فارسی)
+
+```bash
+bash <(curl -s https://raw.githubusercontent.com/amirebi9156/Rez-reverse-tunnel/main/install.sh --ipv4)
+```
+
+پس از اجرای دستور بالا، اسکریپت وابستگی‌ها را نصب کرده و برنامه را اجرا می‌کند. با انتخاب Server یا Client تنظیمات موردنیاز پرسیده می‌شود و فایل `config.toml` ساخته خواهد شد.

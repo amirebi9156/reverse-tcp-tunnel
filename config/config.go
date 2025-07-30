@@ -3,10 +3,14 @@
 package config
 
 import (
+	"bytes"
+	"os"
+
 	"github.com/pelletier/go-toml"
 )
 
 type Config struct {
+	Name        string   `toml:"name"`
 	ListenAddr  string   `toml:"listen_addr"`
 	ConnectAddr string   `toml:"connect_addr"`
 	Token       string   `toml:"token"`
@@ -24,4 +28,13 @@ func Load(path string) (Config, error) {
 
 	err = tree.Unmarshal(&cfg)
 	return cfg, err
+}
+
+// Save writes the configuration to the specified file in TOML format.
+func Save(path string, cfg Config) error {
+	buf := &bytes.Buffer{}
+	if err := toml.NewEncoder(buf).Encode(cfg); err != nil {
+		return err
+	}
+	return os.WriteFile(path, buf.Bytes(), 0644)
 }

@@ -3,7 +3,6 @@ package server
 import (
 	"bufio"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net"
 	"time"
@@ -13,16 +12,12 @@ import (
 )
 
 type handshake struct {
+	Name  string `json:"name"`
 	Token string `json:"token"`
 	Port  string `json:"port"`
 }
 
-func Start() error {
-	cfg, err := config.Load("config.toml")
-	if err != nil {
-		return fmt.Errorf("load config: %w", err)
-	}
-
+func Start(cfg config.Config) error {
 	if err := logger.Init(cfg.LogFile); err != nil {
 		return err
 	}
@@ -66,6 +61,8 @@ func handleConnection(conn net.Conn, cfg config.Config) {
 		logger.Log.Printf("invalid token")
 		return
 	}
+
+	logger.Log.Printf("tunnel %s requested on port %s", hs.Name, hs.Port)
 
 	if !contains(cfg.TunnelPorts, hs.Port) {
 		logger.Log.Printf("unauthorized port %s", hs.Port)
