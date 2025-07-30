@@ -1,105 +1,95 @@
-// server/server.go
 package server
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
-	"os"
-	"strings"
 	"time"
-	"github.com/pelletier/go-toml"
+
+	"reverse/config"
+	"reverse/pkg/logger"
 )
 
-type TunnelConfig struct {
-	Name        string   `toml:"tunnel_name"`
-	Port        string   `toml:"listen_port"`
-	Token       string   `toml:"token"`
-	TunnelPorts []string `toml:"tunnel_ports"`
-}
-
-func loadServerConfig(path string) (TunnelConfig, error) {
-	var config TunnelConfig
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return config, err
-	}
-	err = toml.Unmarshal(data, &config)
-	return config, err
+type handshake struct {
+	Token string `json:"token"`
+	Port  string `json:"port"`
 }
 
 func Start() error {
-	config, err := loadServerConfig("config.toml")
+	cfg, err := config.Load("config.toml")
 	if err != nil {
-		return fmt.Errorf("[!] Failed to load config: %v", err)
+		return fmt.Errorf("load config: %w", err)
 	}
 
-	address := ":" + config.Port
-	listener, err := net.Listen("tcp", address)
-	if err != nil {
-		return fmt.Errorf("[!] Failed to listen on %s: %v", address, err)
+	if err := logger.Init(cfg.LogFile); err != nil {
+		return err
 	}
-	defer listener.Close()
 
-	fmt.Println("[+] Tunnel server is listening on", address)
+	ln, err := net.Listen("tcp", cfg.ListenAddr)
+	if err != nil {
+		return err
+	}
+	defer ln.Close()
 
+	logger.Log.Printf("server listening on %s", cfg.ListenAddr)
 	for {
-		conn, err := listener.Accept()
+		conn, err := ln.Accept()
 		if err != nil {
-			fmt.Println("[!] Accept error:", err)
+			logger.Log.Printf("accept error: %v", err)
 			continue
 		}
-		go handleConnection(conn, config)
+		go handleConnection(conn, cfg)
 	}
 }
 
-func handleConnection(conn net.Conn, config TunnelConfig) {
-	fmt.Println("[+] Connection from", conn.RemoteAddr())
+func handleConnection(conn net.Conn, cfg config.Config) {
+	logger.Log.Printf("connection from %s", conn.RemoteAddr())
+	defer conn.Close()
 
+	conn.SetReadDeadline(time.Now().Add(10 * time.Second))
 	reader := bufio.NewReader(conn)
 	line, err := reader.ReadString('\n')
 	if err != nil {
-		fmt.Println("[!] Failed to read token:", err)
-		conn.Close()
+		logger.Log.Printf("handshake read error: %v", err)
 		return
 	}
-	tokenLine := strings.TrimSpace(line)
-	if tokenLine != "TOKEN:"+config.Token {
-		fmt.Println("[!] Invalid token. Closing connection")
-		conn.Close()
+	conn.SetReadDeadline(time.Time{})
+
+	var hs handshake
+	if err := json.Unmarshal([]byte(line), &hs); err != nil {
+		logger.Log.Printf("invalid handshake: %v", err)
 		return
 	}
-
-	fmt.Println("[✓] Valid client authenticated")
-
-	go func() {
-		for {
-			line, err := reader.ReadString('\n')
-			if err != nil {
-				fmt.Println("[!] Client disconnected or error:", err)
-				return
-			}
-			if strings.TrimSpace(line) == "HEARTBEAT" {
-				fmt.Println("[~] Received heartbeat from client")
-			}
-		}
-	}()
-
-	if len(config.TunnelPorts) == 0 {
-		fmt.Println("[!] No tunnel ports specified")
-		conn.Close()
+	if hs.Token != cfg.Token {
+		logger.Log.Printf("invalid token")
 		return
 	}
 
-	target := "127.0.0.1:" + config.TunnelPorts[0]
+	if !contains(cfg.TunnelPorts, hs.Port) {
+		logger.Log.Printf("unauthorized port %s", hs.Port)
+		return
+	}
+
+	target := "127.0.0.1:" + hs.Port
 	targetConn, err := net.Dial("tcp", target)
 	if err != nil {
-		fmt.Println("[!] Failed to connect to local service on", target, "-", err)
-		conn.Close()
+		logger.Log.Printf("failed to connect to %s: %v", target, err)
 		return
 	}
+	defer targetConn.Close()
 
-	go io.Copy(targetConn, conn)
-	go io.Copy(conn, targetConn)
+	logger.Log.Printf("tunneling to %s", target)
+	go io.Copy(targetConn, reader)
+	io.Copy(conn, targetConn)
+}
+
+func contains(list []string, v string) bool {
+	for _, s := range list {
+		if s == v {
+			return true
+		}
+	}
+	return false
 }

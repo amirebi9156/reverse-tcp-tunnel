@@ -15,7 +15,10 @@ import (
 )
 
 func main() {
-	cfg := config.Load("config.toml")
+	_, err := config.Load("config.toml")
+	if err != nil {
+		log.Fatalf("failed to load config: %v", err)
+	}
 	reader := bufio.NewReader(os.Stdin)
 
 	fmt.Println(`
@@ -37,20 +40,12 @@ func main() {
 	switch choice {
 	case "1":
 		fmt.Println("[+] Starting in SERVER mode (Iran VPS)...")
-		err := server.Start(cfg.ListenAddr)
-		if err != nil {
+		if err := server.Start(); err != nil {
 			log.Fatal("[!] Server error:", err)
 		}
 	case "2":
-		fmt.Printf("Enter Iran server IP:PORT (default %s): ", cfg.ConnectAddr)
-		ip, _ := reader.ReadString('\n')
-		ip = strings.TrimSpace(ip)
-		if ip == "" {
-			ip = cfg.ConnectAddr
-		}
 		fmt.Println("[+] Starting in CLIENT mode (Foreign VPS)...")
-		err := client.Start(ip)
-		if err != nil {
+		if err := client.Start(); err != nil {
 			log.Fatal("[!] Client error:", err)
 		}
 	case "8":
